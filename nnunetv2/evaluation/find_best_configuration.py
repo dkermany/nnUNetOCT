@@ -15,6 +15,8 @@ from nnunetv2.utilities.file_path_utilities import maybe_convert_to_dataset_name
     convert_identifier_to_trainer_plans_config, get_ensemble_name, folds_tuple_to_string
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
 
+import statistics
+
 default_trained_models = tuple([
     {'plans': 'nnUNetPlans', 'configuration': '2d', 'trainer': 'nnUNetTrainer'},
     {'plans': 'nnUNetPlans', 'configuration': '3d_fullres', 'trainer': 'nnUNetTrainer'},
@@ -98,10 +100,14 @@ def find_best_configuration(dataset_name_or_id,
         identifier = os.path.basename(output_folder)
         merged_output_folder = join(output_folder, f'crossval_results_folds_{folds_tuple_to_string(folds)}')
         accumulate_cv_results(output_folder, merged_output_folder, folds, num_processes, overwrite)
+        
+        #Edits made to use statistics.mean() since unused labels become nan and ruin calculations
+        summary_json = load_summary_json(join(merged_output_folder, 'summary.json'))
         all_results[identifier] = {
             'source': merged_output_folder,
-            'result': load_summary_json(join(merged_output_folder, 'summary.json'))['foreground_mean']['Dice']
+            'result': statistics.mean([summary_json['mean'][i]['Dice'] for i in range(1, len(summary_json['mean']))])
         }
+        #print(identifier, [summary_json['mean'][i]['Dice'] for i in range(1, len(summary_json['mean']))])
 
     if allow_ensembling:
         for i in range(len(allowed_trained_models)):
@@ -132,10 +138,12 @@ def find_best_configuration(dataset_name_or_id,
                                           label_manager.foreground_labels,
                                           label_manager.ignore_label,
                                           num_processes)
+
+                summary_json = load_summary_json(join(output_folder_ensemble, 'summary.json'))
                 all_results[identifier] = \
                     {
                     'source': output_folder_ensemble,
-                    'result': load_summary_json(join(output_folder_ensemble, 'summary.json'))['foreground_mean']['Dice']
+                    'result': statistics.mean([summary_json['mean'][i]['Dice'] for i in range(1, len(summary_json['mean']))])
                     }
 
     # pick best and report inference command
@@ -143,6 +151,8 @@ def find_best_configuration(dataset_name_or_id,
     best_keys = [k for k in all_results.keys() if all_results[k]['result'] == best_score]  # may never happen but theoretically
     # there can be a tie. Let's pick the first model in this case because it's going to be the simpler one (ensembles
     # come after single configs)
+    print([i["result"] for i in all_results.values()])
+
     best_key = best_keys[0]
 
     print()
