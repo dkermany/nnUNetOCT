@@ -140,6 +140,13 @@ def preprocess_dataset(dataset_id: int,
                   join(nnUNet_preprocessed, dataset_name, 'gt_segmentations', k + dataset_json['file_ending']),
                   update=True)
 
+        # Added this to also copy over spacing files to gt_segmentations to
+        # avoid the "WARNING no spacer file found" message
+        if dataset_json['file_ending'].lower() in ('.tif', '.tiff'):
+            copy_file(dataset[k]['label'].split(".")[0] + ".json",
+                      join(nnUNet_preprocessed, dataset_name, 'gt_segmentations', k + '.json'),
+                      update=True)
+
 
 def preprocess(dataset_ids: List[int],
                plans_identifier: str = 'nnUNetPlans',
