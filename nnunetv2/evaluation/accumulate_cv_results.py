@@ -1,7 +1,7 @@
 import shutil
 from typing import Union, List, Tuple
 
-from batchgenerators.utilities.file_and_folder_operations import load_json, join, isdir, maybe_mkdir_p, subfiles, isfile
+from batchgenerators.utilities.file_and_folder_operations import load_json, join, isdir, maybe_mkdir_p, subfiles, isfile, split_path
 
 from nnunetv2.configuration import default_num_processes
 from nnunetv2.evaluation.evaluate_predictions import compute_metrics_on_folder
@@ -39,6 +39,13 @@ def accumulate_cv_results(trained_model_folder,
             if overwrite and isfile(join(merged_output_folder, pf)):
                 raise RuntimeError(f'More than one of your folds has a prediction for case {pf}')
             if overwrite or not isfile(join(merged_output_folder, pf)):
+                #print("accumulate_cv_results log:", expected_validation_folder, merged_output_folder)
+                if pf.split(".")[-1].lower() in ("tif", "tiff"):
+                    jf = pf.split(".")[0] + ".json"
+                    if isfile(join(expected_validation_folder, jf)):
+                        #print(join(expected_validation_folder, jf), join(merged_output_folder, jf))
+                        shutil.copy(join(expected_validation_folder, jf), join(merged_output_folder, jf))
+
                 shutil.copy(join(expected_validation_folder, pf), join(merged_output_folder, pf))
                 did_we_copy_something = True
 
