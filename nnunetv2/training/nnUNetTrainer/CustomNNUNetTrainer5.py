@@ -17,9 +17,8 @@ from batchgeneratorsv2.transforms.nnunet.remove_connected_components import \
     RemoveRandomConnectedComponentFromOneHotEncodingTransform
 from batchgeneratorsv2.transforms.nnunet.seg_to_onehot import MoveSegAsOneHotToDataTransform
 from batchgeneratorsv2.transforms.noise.gaussian_blur import GaussianBlurTransform
-from batchgeneratorsv2.transforms.spatial.low_resolution import SimulateLowResolutionTransform
 from batchgeneratorsv2.transforms.spatial.mirroring import MirrorTransform
-from batchgeneratorsv2.transforms.spatial.spatial import SpatialTransform
+from batchgeneratorsv2.transforms.spatial.low_resolution import SimulateLowResolutionTransform
 from batchgeneratorsv2.transforms.utils.compose import ComposeTransforms
 from batchgeneratorsv2.transforms.utils.deep_supervision_downsampling import DownsampleSegForDSTransform
 from batchgeneratorsv2.transforms.utils.nnunet_masking import MaskImageTransform
@@ -39,11 +38,12 @@ from nnunetv2.training.data_augmentation.custom_transforms.custom_window_level i
 from nnunetv2.training.data_augmentation.custom_transforms.custom_artifact_transform import CustomArtifactTransform
 from nnunetv2.training.data_augmentation.custom_transforms.custom_spatial_transform import CustomSpatialTransform
 from nnunetv2.training.data_augmentation.custom_transforms.custom_noise_transform import CustomNoiseTransform
+from nnunetv2.training.data_augmentation.custom_transforms.custom_spatial_transform import CustomSpatialTransform
 
 from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_CE_loss
 from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_BCE_loss
 
-class CustomNNUNetTrainer(nnUNetTrainer):
+class CustomNNUNetTrainer5(nnUNetTrainer):
     def __init__(self, plans, configuration, fold, dataset_json,
                  unpack_dataset=True, device=torch.device("cuda")):
         super().__init__(
@@ -51,9 +51,9 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             device=device
         )
 
-        print("Using CustomNNUNetTrainer!")
-        #                                  bg    PED   HRF   FLU   HTD   RPE   RET  CHO  VIT  HYA  SHS  ART  ERM  SES
-        self.class_weights = torch.tensor([0.00, 3.00, 4.00, 1.75, 2.13, 1.00, 0.5, 0.1, 0.3, 3.5, 1.0, 1.0, 1.0, 1.5],
+        print("Using CustomNNUNetTrainer5!")
+        #                                  bg    PED   HRF   FLU   HTD   RPE   RET  CHO  VIT  HYA  SHS  ART   ERM  SES
+        self.class_weights = torch.tensor([0.00, 5.00, 4.00, 2.50, 3.50, 1.00, 0.5, 0.1, 0.4, 5.0, 2.0, 0.75, 2.0, 1.5],
                                           dtype=torch.float32).to(device) 
 
     def _build_loss(self):
@@ -186,12 +186,13 @@ class CustomNNUNetTrainer(nnUNetTrainer):
                 p_per_channel=1
             ), apply_probability=0.33
         ))
+
         # Added CustomArtifactTransform
         transforms.append(RandomTransform(
             CustomArtifactTransform(
-                version=("black", "gray", "white"),
+                version=("black", "gray"),
                 artifact_label=11,
-            ), apply_probability=1.0
+            ), apply_probability=0.5
         ))
         # Added CustomReshapeTransform
         # but doesn't work because all image shapes need to be the same
@@ -224,7 +225,11 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         #         p_retain_stats=1
         #     ), apply_probability=0.0
         # ))
+        
+        ## Custom Mirror axes to only mirror on the horizontal axis
         if mirror_axes is not None and len(mirror_axes) > 0:
+            mirror_axes = [1]
+            print(f"Mirror axes: {mirror_axes}")
             transforms.append(
                 MirrorTransform(
                     allowed_axes=mirror_axes

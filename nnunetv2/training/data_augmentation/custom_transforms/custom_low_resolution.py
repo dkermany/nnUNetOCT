@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import torch
+import random
 
 from batchgeneratorsv2.helpers.scalar_type import RandomScalar, sample_scalar
 from batchgeneratorsv2.transforms.base.basic_transform import ImageOnlyTransform
@@ -18,11 +19,7 @@ class CustomLowResolutionTransform(ImageOnlyTransform):
         self.allowed_channels = allowed_channels
         self.p_per_channel = p_per_channel
 
-        self.upmodes = {
-            1: 'linear',
-            2: 'bilinear',
-            3: 'trilinear'
-        }
+        self.modes = ["nearest-exact", "bilinear"]
 
     def get_parameters(self, **data_dict) -> dict:
         shape = data_dict['image'].shape
@@ -51,5 +48,6 @@ class CustomLowResolutionTransform(ImageOnlyTransform):
         for c, s in zip(params['apply_to_channel'], params['scales']):
             new_shape = [round(i * j.item()) for i, j in zip(orig_shape, s)]
             downsampled = interpolate(img[c][None, None], new_shape, mode='nearest-exact')
-            img[c] = interpolate(downsampled, orig_shape, mode=self.upmodes[img.ndim - 1])[0, 0]
+            # img[c] = interpolate(downsampled, orig_shape, mode=self.upmodes[img.ndim - 1])[0, 0]
+            img[c] = interpolate(downsampled, orig_shape, mode=random.choice(self.modes))[0, 0]
         return img

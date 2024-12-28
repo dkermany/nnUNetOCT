@@ -40,10 +40,8 @@ from nnunetv2.training.data_augmentation.custom_transforms.custom_artifact_trans
 from nnunetv2.training.data_augmentation.custom_transforms.custom_spatial_transform import CustomSpatialTransform
 from nnunetv2.training.data_augmentation.custom_transforms.custom_noise_transform import CustomNoiseTransform
 
-from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_CE_loss
-from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_BCE_loss
 
-class CustomNNUNetTrainer(nnUNetTrainer):
+class NoClassWeightsCustomTrainer(nnUNetTrainer):
     def __init__(self, plans, configuration, fold, dataset_json,
                  unpack_dataset=True, device=torch.device("cuda")):
         super().__init__(
@@ -51,55 +49,11 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             device=device
         )
 
-        print("Using CustomNNUNetTrainer!")
+        print("Using NoClassWeightsCustomTrainer!")
         #                                  bg    PED   HRF   FLU   HTD   RPE   RET  CHO  VIT  HYA  SHS  ART  ERM  SES
         self.class_weights = torch.tensor([0.00, 3.00, 4.00, 1.75, 2.13, 1.00, 0.5, 0.1, 0.3, 3.5, 1.0, 1.0, 1.0, 1.5],
                                           dtype=torch.float32).to(device) 
 
-    def _build_loss(self):
-        ## Adding custom class weights for OCT feature segmentation
-
-        if self.label_manager.has_regions:
-            print("Using DC_and_BCE_loss")
-            loss = Custom_DC_and_BCE_loss({'weight': self.class_weights},
-                                          {'batch_dice': self.configuration_manager.batch_dice,
-                                           'do_bg': True, 'smooth': 1e-5, 'ddp': self.is_ddp,
-                                           'weight': self.class_weights},
-                                          use_ignore_label=self.label_manager.ignore_label is not None)
-                                          #dice_class=MemoryEfficientSoftDiceLoss)
-        else:
-            print("Using DC_and_CE_loss")
-            loss = Custom_DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice,
-                                          'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp, 'weight': self.class_weights},
-                                         {'weight': self.class_weights},
-                                         weight_ce=1, weight_dice=1, ignore_label=self.label_manager.ignore_label)
-                                         #dice_class=MemoryEfficientSoftDiceLoss)
-
-        ## No custom edits beyond this point
-
-        if self._do_i_compile():
-            loss.dc = torch.compile(loss.dc)
-
-        # we give each output a weight which decreases exponentially (division by 2) as the resolution decreases
-        # this gives higher resolution outputs more weight in the loss
-
-        if self.enable_deep_supervision:
-            deep_supervision_scales = self._get_deep_supervision_scales()
-            weights = np.array([1 / (2 ** i) for i in range(len(deep_supervision_scales))])
-            if self.is_ddp and not self._do_i_compile():
-                # very strange and stupid interaction. DDP crashes and complains about unused parameters due to
-                # weights[-1] = 0. Interestingly this crash doesn't happen with torch.compile enabled. Strange stuff.
-                # Anywho, the simple fix is to set a very low weight to this.
-                weights[-1] = 1e-6
-            else:
-                weights[-1] = 0
-
-            # we don't use the lowest 2 outputs. Normalize weights so that they sum to 1
-            weights = weights / weights.sum()
-            # now wrap the loss
-            loss = DeepSupervisionWrapper(loss, weights)
-
-        return loss
 
     @staticmethod
     def get_training_transforms(
@@ -124,10 +78,10 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             ignore_axes = None
 
         transforms.append(
-            CustomSpatialTransform(
+            SpatialTransform(
                 patch_size_spatial, patch_center_dist_from_border=0, random_crop=False, p_elastic_deform=0,
                 p_rotation=0.2,
-                rotation=rotation_for_DA, p_scaling=0.2, scaling=(0.85, 1.1), p_synchronize_scaling_across_axes=1,
+                rotation=rotation_for_DA, p_scaling=0.1, scaling=(0.9, 1.1), p_synchronize_scaling_across_axes=1,
                 bg_style_seg_sampling=False  # , mode_seg='nearest'
             )
         )
@@ -135,12 +89,12 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         if do_dummy_2d_data_aug:
             transforms.append(Convert2DTo3DTransform())
 
-        transforms.append(RandomTransform(
-            CustomNoiseTransform(
-                sigma_range=(0.2, 0.7),
-                block_range=(0, 7),
-            ), apply_probability=0.2
-        ))
+        # transforms.append(RandomTransform(
+        #     CustomNoiseTransform(
+        #         sigma_range=(0.2, 0.7),
+        #         block_range=(0, 7),
+        #     ), apply_probability=0.2
+        # ))
         transforms.append(RandomTransform(
             GaussianBlurTransform(
                 blur_sigma=(0.5, 1.),
@@ -239,7 +193,7 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             ))
 
         transforms.append(
-            RemoveLabelTansform(-1, 11)
+            RemoveLabelTansform(-1, 0)
         )
         if is_cascaded:
             assert foreground_labels is not None, 'We need foreground_labels for cascade augmentations'

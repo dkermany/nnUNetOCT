@@ -43,7 +43,7 @@ from nnunetv2.training.data_augmentation.custom_transforms.custom_noise_transfor
 from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_CE_loss
 from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_BCE_loss
 
-class CustomNNUNetTrainer(nnUNetTrainer):
+class CustomNNUNetTrainer2(nnUNetTrainer):
     def __init__(self, plans, configuration, fold, dataset_json,
                  unpack_dataset=True, device=torch.device("cuda")):
         super().__init__(
@@ -51,9 +51,9 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             device=device
         )
 
-        print("Using CustomNNUNetTrainer!")
-        #                                  bg    PED   HRF   FLU   HTD   RPE   RET  CHO  VIT  HYA  SHS  ART  ERM  SES
-        self.class_weights = torch.tensor([0.00, 3.00, 4.00, 1.75, 2.13, 1.00, 0.5, 0.1, 0.3, 3.5, 1.0, 1.0, 1.0, 1.5],
+        print("Using CustomNNUNetTrainer2!")
+        #                                  bg    PED   HRF   FLU   HTD   RPE   RET  CHO  VIT  HYA  SHS  ART   ERM  SES
+        self.class_weights = torch.tensor([0.00, 5.00, 4.00, 2.50, 3.50, 1.00, 0.5, 0.1, 0.4, 5.0, 2.0, 0.75, 2.0, 1.5],
                                           dtype=torch.float32).to(device) 
 
     def _build_loss(self):
@@ -189,9 +189,9 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         # Added CustomArtifactTransform
         transforms.append(RandomTransform(
             CustomArtifactTransform(
-                version=("black", "gray", "white"),
+                version=("black", "gray"),
                 artifact_label=11,
-            ), apply_probability=1.0
+            ), apply_probability=0.5
         ))
         # Added CustomReshapeTransform
         # but doesn't work because all image shapes need to be the same

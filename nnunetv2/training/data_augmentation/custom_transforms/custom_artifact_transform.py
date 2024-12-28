@@ -7,14 +7,14 @@ from batchgeneratorsv2.helpers.scalar_type import RandomScalar, sample_scalar
 from batchgeneratorsv2.transforms.base.basic_transform import ImageOnlyTransform
 
 class CustomArtifactTransform(ImageOnlyTransform):
-    def __init__(self, version: Tuple[str, ...], artifact_label=12):
+    def __init__(self, version: Tuple[str, ...], artifact_label=11):
         super().__init__()
         self.version = version 
         self.artifact_label = artifact_label
 
     def get_parameters(self, **data_dict) -> dict:
         segmentation = data_dict["segmentation"]
-        artifact_mask = (segmentation == self.artifact_label)
+        artifact_mask = (segmentation == self.artifact_label) | (segmentation <= -1)
         selected_version = random.choice(self.version)
         return {
             "artifact_mask": artifact_mask,

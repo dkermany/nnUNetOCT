@@ -43,7 +43,7 @@ from nnunetv2.training.data_augmentation.custom_transforms.custom_noise_transfor
 from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_CE_loss
 from nnunetv2.training.loss.custom_compound_losses import Custom_DC_and_BCE_loss
 
-class CustomNNUNetTrainer(nnUNetTrainer):
+class CustomNNUNetTrainer4(nnUNetTrainer):
     def __init__(self, plans, configuration, fold, dataset_json,
                  unpack_dataset=True, device=torch.device("cuda")):
         super().__init__(
@@ -53,7 +53,7 @@ class CustomNNUNetTrainer(nnUNetTrainer):
 
         print("Using CustomNNUNetTrainer!")
         #                                  bg    PED   HRF   FLU   HTD   RPE   RET  CHO  VIT  HYA  SHS  ART  ERM  SES
-        self.class_weights = torch.tensor([0.00, 3.00, 4.00, 1.75, 2.13, 1.00, 0.5, 0.1, 0.3, 3.5, 1.0, 1.0, 1.0, 1.5],
+        self.class_weights = torch.tensor([1.00, 3.00, 4.00, 1.75, 2.13, 1.00, 0.5, 0.1, 0.3, 3.5, 1.0, 1.0, 1.0, 1.5],
                                           dtype=torch.float32).to(device) 
 
     def _build_loss(self):
@@ -123,11 +123,19 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             patch_size_spatial = patch_size
             ignore_axes = None
 
+        # transforms.append(
+        #     CustomSpatialTransform(
+        #         patch_size_spatial, patch_center_dist_from_border=0, random_crop=False, p_elastic_deform=0,
+        #         p_rotation=0.2,
+        #         rotation=rotation_for_DA, p_scaling=0.2, scaling=(0.85, 1.1), p_synchronize_scaling_across_axes=1,
+        #         bg_style_seg_sampling=False  # , mode_seg='nearest'
+        #     )
+        # )
         transforms.append(
-            CustomSpatialTransform(
+            SpatialTransform(
                 patch_size_spatial, patch_center_dist_from_border=0, random_crop=False, p_elastic_deform=0,
                 p_rotation=0.2,
-                rotation=rotation_for_DA, p_scaling=0.2, scaling=(0.85, 1.1), p_synchronize_scaling_across_axes=1,
+                rotation=rotation_for_DA, p_scaling=0.2, scaling=(0.9, 1.1), p_synchronize_scaling_across_axes=1,
                 bg_style_seg_sampling=False  # , mode_seg='nearest'
             )
         )
@@ -135,12 +143,20 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         if do_dummy_2d_data_aug:
             transforms.append(Convert2DTo3DTransform())
 
+       # transforms.append(RandomTransform(
+       #     CustomNoiseTransform(
+       #         sigma_range=(0.2, 0.7),
+       #         block_range=(0, 7),
+       #     ), apply_probability=0.2
+       # ))
         transforms.append(RandomTransform(
-            CustomNoiseTransform(
-                sigma_range=(0.2, 0.7),
-                block_range=(0, 7),
-            ), apply_probability=0.2
+            GaussianNoiseTransform(
+                noise_variance=(0, 0.1),
+                p_per_channel=1,
+                synchronize_channels=True
+            ), apply_probability=0.1
         ))
+
         transforms.append(RandomTransform(
             GaussianBlurTransform(
                 blur_sigma=(0.5, 1.),
@@ -158,7 +174,7 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         ))
         transforms.append(RandomTransform(
             ContrastTransform(
-                contrast_range=BGContrast((1, 4)),
+                contrast_range=BGContrast((0.75, 1.25)),
                 preserve_range=True,
                 synchronize_channels=False,
                 p_per_channel=1
@@ -167,7 +183,7 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         # Added CustomLowResTransform
         transforms.append(RandomTransform(
             CustomLowResolutionTransform(
-                scale=(0.1, 0.45),
+                scale=(0.1, 0.5),
                 synchronize_channels=True,
                 synchronize_axes=True,
                 ignore_axes=ignore_axes,
@@ -176,22 +192,22 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             ), apply_probability=0.33
         ))
         # Added CustomWindowLevelTransform
-        transforms.append(RandomTransform(
-            CustomWindowLevelTransform(
-                window=(10, 100),
-                synchronize_channels=True,
-                synchronize_axes=True,
-                ignore_axes=ignore_axes,
-                allowed_channels=None,
-                p_per_channel=1
-            ), apply_probability=0.33
-        ))
+        # transforms.append(RandomTransform(
+        #     CustomWindowLevelTransform(
+        #         window=(10, 100),
+        #         synchronize_channels=True,
+        #         synchronize_axes=True,
+        #         ignore_axes=ignore_axes,
+        #         allowed_channels=None,
+        #         p_per_channel=1
+        #     ), apply_probability=0.33
+        # ))
         # Added CustomArtifactTransform
         transforms.append(RandomTransform(
             CustomArtifactTransform(
-                version=("black", "gray", "white"),
+                version=("black"),
                 artifact_label=11,
-            ), apply_probability=1.0
+            ), apply_probability=0.5
         ))
         # Added CustomReshapeTransform
         # but doesn't work because all image shapes need to be the same
@@ -208,22 +224,22 @@ class CustomNNUNetTrainer(nnUNetTrainer):
         # ))
         transforms.append(RandomTransform(
             GammaTransform(
-                gamma=BGContrast((0.3, 3.5)),
+                gamma=BGContrast((0.7, 1.5)),
+                p_invert_image=1,
+                synchronize_channels=True,
+                p_per_channel=1,
+                p_retain_stats=1
+            ), apply_probability=0.1
+        ))
+        transforms.append(RandomTransform(
+            GammaTransform(
+                gamma=BGContrast((0.7, 1.5)),
                 p_invert_image=0,
                 synchronize_channels=True,
                 p_per_channel=1,
                 p_retain_stats=1
-            ), apply_probability=0.25
+            ), apply_probability=0.3
         ))
-        # transforms.append(RandomTransform(
-        #     GammaTransform(
-        #         gamma=BGContrast((0.7, 1.5)),
-        #         p_invert_image=0,
-        #         synchronize_channels=True,
-        #         p_per_channel=1,
-        #         p_retain_stats=1
-        #     ), apply_probability=0.0
-        # ))
         if mirror_axes is not None and len(mirror_axes) > 0:
             transforms.append(
                 MirrorTransform(
@@ -239,7 +255,7 @@ class CustomNNUNetTrainer(nnUNetTrainer):
             ))
 
         transforms.append(
-            RemoveLabelTansform(-1, 11)
+            RemoveLabelTansform(-1, 0)
         )
         if is_cascaded:
             assert foreground_labels is not None, 'We need foreground_labels for cascade augmentations'

@@ -16,7 +16,7 @@ from batchgeneratorsv2.transforms.base.basic_transform import BasicTransform
 from batchgeneratorsv2.transforms.utils.cropping import crop_tensor
 
 
-class SpatialTransform(BasicTransform):
+class CustomSpatialTransform(BasicTransform):
     def __init__(self,
                  patch_size: Tuple[int, ...],
                  patch_center_dist_from_border: Union[int, List[int], Tuple[int, ...]],
@@ -255,8 +255,8 @@ class SpatialTransform(BasicTransform):
                         del tmp
             del grid
 
-            #TODO: replace all background values with ARTIFACT label
-            # result_seg[result_seg == 0] = valueforART
+            # replace all background values with ARTIFACT label
+            result_seg[result_seg <= 0] = 11
 
             return result_seg.contiguous()
 
